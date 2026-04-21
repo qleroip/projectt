@@ -1,0 +1,108 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header">
+    {% if existing_risk %}
+      <h1>План минимизации для {{ existing_risk.public_id }}</h1>
+      <p>Добавьте меры к риску, созданному из очереди инцидентов</p>
+    {% else %}
+      <h1>План минимизации риска</h1>
+      <p>Создание риска и связанных предупредительных мер в одной транзакции</p>
+    {% endif %}
+  </section>
+
+  <form method="post" class="plan-form" id="plan-form">
+    {% if existing_risk %}
+      <input type="hidden" name="risk_public_id" value="{{ existing_risk.public_id }}">
+    {% endif %}
+    <section class="panel form-panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Информация о риске</h2>
+          <p>{% if existing_risk %}Существующий риск из инцидента{% else %}Сущность A - основная запись риска{% endif %}</p>
+        </div>
+      </div>
+      {% if existing_risk %}
+        <div class="detail-list">
+          <div><span>ID</span><strong>{{ existing_risk.public_id }}</strong></div>
+          <div><span>Название</span><strong>{{ existing_risk.title }}</strong></div>
+          <div><span>Категория</span><strong>{{ category_label(existing_risk.category) }}</strong></div>
+          <div><span>Уровень влияния</span><strong>{{ severity_label(existing_risk.impact_level) }}</strong></div>
+          <div><span>Владелец</span><strong>{{ existing_risk.owner.full_name }}</strong></div>
+          <div><span>Текущих мер</span><strong>{{ existing_risk.measures|length }}</strong></div>
+          <div><span>Описание</span><strong>{{ existing_risk.description }}</strong></div>
+        </div>
+      {% else %}
+        <div class="field-stack">
+          <label>Название риска *</label>
+          <input name="title" placeholder="Введите название риска" required>
+          <label>Описание *</label>
+          <textarea name="description" rows="5" placeholder="Подробное описание риска" required></textarea>
+          <div class="form-grid">
+            <div>
+              <label>Категория *</label>
+              <select name="category" required>
+                <option value="Operational">Операционный</option>
+                <option value="Security">Информационная безопасность</option>
+                <option value="Compliance">Соответствие требованиям</option>
+                <option value="Technology">Технологический</option>
+              </select>
+            </div>
+            <div>
+              <label>Уровень влияния *</label>
+              <select name="impact_level" required>
+                <option value="Medium">Средний</option>
+                <option value="High">Высокий</option>
+                <option value="Critical">Критический</option>
+                <option value="Low">Низкий</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="panel form-panel">
+      <div class="panel-heading between">
+        <div>
+          <h2>Меры предотвращения</h2>
+          <p>Сущность B - связанные действия по минимизации (One-to-Many)</p>
+        </div>
+        <button class="primary-btn" type="button" id="add-measure-btn">+ Добавить меру</button>
+      </div>
+      <div id="measures-container">
+        <article class="measure-card">
+          <div class="measure-card-head">
+            <div class="measure-number">1</div>
+            <button class="measure-remove" type="button" aria-label="Удалить меру">Удалить</button>
+          </div>
+          <div class="field-stack">
+            <label>Действие *</label>
+            <input name="measure_action" placeholder="Опишите меру предотвращения" required>
+            <div class="form-grid">
+              <div>
+                <label>Ответственный *</label>
+                <input name="measure_person" placeholder="ФИО ответственного" required>
+              </div>
+              <div>
+                <label>Срок *</label>
+                <input type="date" name="measure_deadline" required>
+              </div>
+            </div>
+            <label>Приоритет *</label>
+            <div class="priority-group">
+              <label><input type="radio" name="measure_priority_0" value="High" checked><span>Высокий</span></label>
+              <label><input type="radio" name="measure_priority_0" value="Medium"><span>Средний</span></label>
+              <label><input type="radio" name="measure_priority_0" value="Low"><span>Низкий</span></label>
+            </div>
+            <input type="hidden" name="measure_priority" value="High" class="priority-hidden">
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <button class="gradient-btn submit-wide" type="submit">
+      {% if existing_risk %}Добавить меры к риску{% else %}Создать риск и меры предотвращения{% endif %}
+    </button>
+  </form>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header">
+    <h1>Журнал рисков</h1>
+    <p>Анализ, контроль и предотвращение операционных рисков</p>
+  </section>
+
+  {% if current_user.role in ['admin', 'risk_manager'] %}
+    <section class="panel table-panel">
+      <div class="panel-heading between">
+        <div>
+          <h2>Очередь инцидентов</h2>
+          <p>Работник регистрирует инцидент, а риск-менеджер создает риск после проверки</p>
+        </div>
+      </div>
+      <table class="audit-table intake-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Сотрудник</th>
+            <th>Инцидент</th>
+            <th>Дата</th>
+            <th>Факт. ущерб</th>
+            <th>Действие</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for intake in pending_incidents %}
+            <tr>
+              <td>{{ intake.public_id }}</td>
+              <td>{{ intake.reporter.full_name }}</td>
+              <td>
+                <div class="risk-title">{{ intake.title }}</div>
+                <div class="risk-description">{{ intake.description }}</div>
+              </td>
+              <td>{{ intake.occurrence_date }}</td>
+              <td>{{ intake.actual_loss if intake.actual_loss else "не указан" }}</td>
+              <td>
+                <form method="post" action="{{ url_for('create_risk_from_intake', public_id=intake.public_id) }}">
+                  <button class="primary-btn small" type="submit">Создать риск</button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6"><span class="muted">Очередь инцидентов пустая.</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  <section class="report-grid compact-metrics">
+    <article class="panel report-card">
+      <span>Активные риски</span>
+      <strong>{{ active_count }}</strong>
+    </article>
+    <article class="panel report-card">
+      <span>Без эксперта</span>
+      <strong>{{ unassigned_count }}</strong>
+    </article>
+    <article class="panel report-card danger">
+      <span>Высокий уровень</span>
+      <strong>{{ critical_count }}</strong>
+    </article>
+  </section>
+
+  <section class="panel table-panel compact-risk-panel">
+    <table class="risk-table compact-risk-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Риск</th>
+          <th>Владелец</th>
+          <th>Эксперт</th>
+          <th>Оценка</th>
+          <th>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for risk in risks %}
+          <tr>
+            <td>{{ risk.public_id }}</td>
+            <td>
+              <a class="risk-title risk-link" href="{{ url_for('risk_detail', public_id=risk.public_id) }}">{{ risk.title }}</a>
+              <div class="risk-description">{{ risk.description }}</div>
+            </td>
+            <td>{{ risk.owner.full_name }}</td>
+            <td>
+              {% if risk.expert %}
+                {{ risk.expert.full_name }}
+              {% else %}
+                <span class="muted">Не назначен</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if risk.assessments %}
+                <span class="status-badge {{ risk.assessments[-1].severity_level|lower }}">{{ severity_label(risk.assessments[-1].severity_level) }}</span>
+              {% else %}
+                <span class="muted">Нет оценки</span>
+              {% endif %}
+            </td>
+            <td><span class="status-badge {{ risk.status|lower }}">{{ status_label(risk.status) }}</span></td>
+            <td>
+              {% if current_user.role in ['admin', 'risk_manager'] and risk.status == 'CREATED' %}
+                <form class="assign-form" method="post" action="{{ url_for('assign_expert', public_id=risk.public_id) }}">
+                  <select class="auto-submit-select" name="expert_id" required aria-label="Назначить эксперта">
+                    <option value="">Назначить эксперта</option>
+                    {% for expert in experts %}
+                      <option value="{{ expert.id }}" {% if risk.expert_id == expert.id %}selected{% endif %}>{{ expert.full_name }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+              {% elif current_user.role in ['admin', 'risk_manager'] and risk.status in ['ACTIVE', 'COMPLETED', 'CANCELLED'] %}
+                <div class="muted expert-locked">Эксперт зафиксирован</div>
+              {% endif %}
+              {% if current_user.role in ['admin', 'risk_manager'] or risk.owner_id == current_user.id %}
+                <div class="table-actions">
+                  <a class="ghost-btn small" href="{{ url_for('risk_detail', public_id=risk.public_id) }}">Открыть</a>
+                  {% if risk.status == 'CREATED' %}
+                    {% if risk.expert_id %}
+                      <form method="post" action="{{ url_for('change_risk_status', public_id=risk.public_id) }}">
+                        <input type="hidden" name="status" value="ACTIVE">
+                        <button class="primary-btn small" type="submit">В работу</button>
+                      </form>
+                    {% else %}
+                      <button class="disabled-btn small" type="button" disabled title="Сначала назначьте эксперта">Назначьте эксперта</button>
+                    {% endif %}
+                  {% elif risk.status == 'ACTIVE' %}
+                    <form method="post" action="{{ url_for('change_risk_status', public_id=risk.public_id) }}">
+                      <input type="hidden" name="status" value="COMPLETED">
+                      <button class="primary-btn small" type="submit">Завершить</button>
+                    </form>
+                    <form method="post" action="{{ url_for('change_risk_status', public_id=risk.public_id) }}">
+                      <input type="hidden" name="status" value="CANCELLED">
+                      <button class="ghost-btn small" type="submit">Отменить</button>
+                    </form>
+                  {% else %}
+                    <span class="muted action-muted">Действий нет</span>
+                  {% endif %}
+                </div>
+              {% else %}
+                <a class="ghost-btn small" href="{{ url_for('risk_detail', public_id=risk.public_id) }}">Открыть</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

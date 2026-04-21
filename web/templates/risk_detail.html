@@ -1,0 +1,116 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header detail-header">
+    <div>
+      <h1>{{ risk.public_id }}: {{ risk.title }}</h1>
+      <p>{{ risk.description }}</p>
+    </div>
+    <a class="ghost-btn" href="{{ url_for('risk_journal') }}">Назад к журналу</a>
+  </section>
+
+  <section class="report-grid compact-metrics">
+    <article class="panel report-card">
+      <span>Статус</span>
+      <strong class="metric-text">{{ status_label(risk.status) }}</strong>
+    </article>
+    <article class="panel report-card">
+      <span>Уровень влияния</span>
+      <strong class="metric-text">{{ severity_label(risk.impact_level) }}</strong>
+    </article>
+    <article class="panel report-card">
+      <span>Меры</span>
+      <strong>{{ risk.measures|length }}</strong>
+    </article>
+  </section>
+
+  <div class="risk-detail-layout">
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Основная информация</h2>
+          <p>Владелец, эксперт и категория риска</p>
+        </div>
+      </div>
+      <div class="detail-list">
+        <div><span>Владелец</span><strong>{{ risk.owner.full_name }}</strong></div>
+        <div><span>Эксперт</span><strong>{{ risk.expert.full_name if risk.expert else "Не назначен" }}</strong></div>
+        <div><span>Категория</span><strong>{{ category_label(risk.category) }}</strong></div>
+        <div><span>Создан</span><strong>{{ risk.created_at }}</strong></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Меры предотвращения</h2>
+          <p>План снижения вероятности или последствий</p>
+        </div>
+      </div>
+      <div class="task-list">
+        {% for measure in risk.measures %}
+          <article class="task-card">
+            <div class="task-headline">
+              <div>
+                <h3>{{ measure.action }}</h3>
+                <p>Ответственный: {{ measure.responsible_person }} · Срок: {{ measure.deadline }}</p>
+              </div>
+              <span class="priority-tag {{ measure.priority|lower }}">{{ priority_label(measure.priority) }}</span>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state">Меры пока не добавлены.</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Оценки эксперта</h2>
+          <p>Вероятность, ущерб и рекомендации</p>
+        </div>
+      </div>
+      <div class="task-list">
+        {% for assessment in risk.assessments %}
+          <article class="task-card">
+            <div class="task-headline">
+              <div>
+                <h3>{{ severity_label(assessment.severity_level) }}</h3>
+                <p>Эксперт: {{ assessment.expert.full_name }} · Дата: {{ assessment.date }}</p>
+                <p>{{ assessment.recommendation }}</p>
+              </div>
+              <span class="status-badge {{ assessment.severity_level|lower }}">{{ assessment.probability }} x {{ assessment.impact_score }}</span>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state">Экспертная оценка пока отсутствует.</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Инциденты</h2>
+          <p>События, связанные с данным риском</p>
+        </div>
+      </div>
+      <div class="task-list">
+        {% for incident in risk.incidents %}
+          <article class="task-card">
+            <div class="task-headline">
+              <div>
+                <h3>{{ incident.public_id }}</h3>
+                <p>{{ incident.description }}</p>
+                <p>Сообщил: {{ incident.reporter.full_name }} · Дата: {{ incident.occurrence_date }} · Ущерб: {{ incident.actual_loss }}</p>
+              </div>
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state">Инциденты не зарегистрированы.</div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+{% endblock %}

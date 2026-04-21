@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Вход в RiskGuard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Serif+Display:opsz@40&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="auth-body">
+    <section class="auth-shell">
+      <div class="auth-logo"><img src="{{ url_for('static', filename='riskguard-icon.png') }}" alt="RiskGuard"></div>
+      <h1>RiskGuard</h1>
+      <p>Система анализа и предотвращения операционных рисков</p>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack auth-flash">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <a class="auth-tab {% if auth_mode == 'login' %}active{% endif %}" href="{{ url_for('auth_page', mode='login') }}">Вход</a>
+          <a class="auth-tab {% if auth_mode == 'register' %}active{% endif %}" href="{{ url_for('auth_page', mode='register') }}">Регистрация</a>
+        </div>
+        {% if auth_mode == 'register' %}
+          <form class="auth-form" method="post" action="{{ url_for('web_register') }}">
+            <label>ФИО</label>
+            <input name="full_name" placeholder="Введите ФИО" required>
+            <label>Email</label>
+            <input type="email" name="email" placeholder="your.email@company.com" required>
+            <label>Пароль</label>
+            <input type="password" name="password" placeholder="Введите пароль" required>
+            <button class="gradient-btn" type="submit">Создать аккаунт</button>
+          </form>
+        {% else %}
+          <form class="auth-form" method="post" action="{{ url_for('web_login') }}">
+            <label>Email</label>
+            <input type="email" name="email" placeholder="your.email@company.com" required>
+            <label>Пароль</label>
+            <input type="password" name="password" placeholder="Введите пароль" required>
+            <div class="auth-row">
+              <label class="remember"><input type="checkbox"> Запомнить меня</label>
+              <span class="link-muted">Забыли пароль?</span>
+            </div>
+            <button class="gradient-btn" type="submit">Войти</button>
+            <div class="auth-note">JWT-аутентификация • защищенное хранение токена</div>
+          </form>
+        {% endif %}
+      </div>
+      <div class="auth-footnote">Защищено корпоративными правилами доступа</div>
+    </section>
+  </body>
+</html>

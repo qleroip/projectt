@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>{{ title or "RiskGuard" }}</title>
+    <style>
+      html, body { background: #f5f7fb; }
+      html[data-ui-mode="night"], html[data-ui-mode="night"] body { background: #0f1422; }
+    </style>
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem("riskguard.mode") || "day";
+          if (mode !== "day" && mode !== "night") {
+            mode = "day";
+          }
+          document.documentElement.setAttribute("data-ui-mode", mode);
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=DM+Serif+Display:opsz@40&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="dashboard-body">
+    <div class="dashboard-layout">
+      <aside class="sidebar">
+        <div class="brand-box">
+          <div class="brand-icon"><img src="{{ url_for('static', filename='riskguard-icon.png') }}" alt="RiskGuard"></div>
+          <div>
+            <div class="brand-title">RiskGuard</div>
+            <div class="brand-subtitle">Управление рисками</div>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a class="nav-link {% if request.endpoint == 'risk_journal' %}active{% endif %}" href="{{ url_for('risk_journal') }}">Журнал рисков</a>
+          <a class="nav-link {% if request.endpoint == 'create_mitigation_plan' %}active{% endif %}" href="{{ url_for('create_mitigation_plan') }}">План минимизации</a>
+          <a class="nav-link {% if request.endpoint == 'background_tasks' %}active{% endif %}" href="{{ url_for('background_tasks') }}">Фоновые задачи</a>
+          <a class="nav-link {% if request.endpoint == 'reports' %}active{% endif %}" href="{{ url_for('reports') }}">Отчеты</a>
+          {% if current_user and current_user.role == 'admin' %}
+            <a class="nav-link {% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}">Пользователи</a>
+          {% endif %}
+          <a class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}">Профиль</a>
+        </nav>
+        <div class="sidebar-user">
+          <div class="avatar-mini">{{ current_user.full_name[:1] if current_user else "R" }}{{ current_user.full_name.split(" ")[-1][:1] if current_user and " " in current_user.full_name else "" }}</div>
+          <div>
+            <div class="sidebar-user-name">{{ current_user.full_name if current_user else "Гость" }}</div>
+            <div class="sidebar-user-role">{{ role_label(current_user.role) if current_user else "" }}</div>
+          </div>
+          <a class="logout-link" href="{{ url_for('logout') }}">↪</a>
+        </div>
+        <section class="sidebar-mode-card">
+          <div class="sidebar-mode-title">Режим</div>
+          <div id="mode-toggle-root" class="sidebar-mode-root" data-initial-mode="day"></div>
+        </section>
+      </aside>
+      <main class="main-panel">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>

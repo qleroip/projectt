@@ -1,0 +1,88 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <h1>Отчет об уровне риска</h1>
+      <p>Аналитическая сводка для риск-менеджера и руководства</p>
+    </div>
+    <a class="primary-btn" href="{{ url_for('export_report_csv') }}">Экспорт CSV</a>
+  </section>
+
+  <section class="report-grid">
+    <article class="panel report-card">
+      <span>Всего рисков</span>
+      <strong>{{ risks|length }}</strong>
+    </article>
+    <article class="panel report-card">
+      <span>Инциденты</span>
+      <strong>{{ incidents|length }}</strong>
+    </article>
+    <article class="panel report-card">
+      <span>Экспертные оценки</span>
+      <strong>{{ assessments|length }}</strong>
+    </article>
+    <article class="panel report-card danger">
+      <span>Высокие/критические</span>
+      <strong>{{ critical_count }}</strong>
+    </article>
+  </section>
+
+  <div class="tasks-layout">
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Распределение по статусам</h2>
+          <p>Контроль жизненного цикла рисков</p>
+        </div>
+      </div>
+      <div class="summary-list">
+        {% for status, count in status_counts.items() %}
+          <div class="summary-item {{ status|lower }}">
+            <span>{{ status_label(status) }}</span>
+            <strong>{{ count }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Категории</h2>
+          <p>Структура операционных рисков</p>
+        </div>
+      </div>
+      <div class="summary-list">
+        {% for category, count in category_counts.items() %}
+          <div class="summary-item">
+            <span>{{ category_label(category) }}</span>
+            <strong>{{ count }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <section class="panel recommendation-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Рекомендации экспертов</h2>
+        <p>Формируются на основе оценок вероятности и ущерба</p>
+      </div>
+    </div>
+    <div class="task-list">
+      {% for assessment in assessments %}
+        <article class="task-card">
+          <div class="task-headline">
+            <div>
+              <h3>{{ assessment.risk.public_id }} {{ assessment.risk.title }}</h3>
+              <p>{{ assessment.recommendation }}</p>
+            </div>
+            <span class="status-badge {{ assessment.severity_level|lower }}">{{ severity_label(assessment.severity_level) }}</span>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

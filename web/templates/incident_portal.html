@@ -1,0 +1,83 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header">
+    <h1>Портал инцидентов</h1>
+    <p>Клиент работника: регистрация инцидентов в очередь проверки риск-менеджером</p>
+  </section>
+
+  <div class="profile-layout">
+    <form class="panel form-panel" method="post">
+      <div class="panel-heading">
+        <div>
+          <h2>Зарегистрировать инцидент</h2>
+          <p>Создает запись в очереди. Риск появится после подтверждения риск-менеджером</p>
+        </div>
+      </div>
+      <div class="field-stack">
+        <label>Название инцидента *</label>
+        <input name="title" placeholder="Краткое название инцидента" required>
+        <label>Описание *</label>
+        <textarea name="description" rows="5" placeholder="Что произошло и где?" required></textarea>
+        <div class="form-grid">
+          <div>
+            <label>Категория *</label>
+            <select name="category">
+              <option value="Operational">Операционный</option>
+              <option value="Security">Информационная безопасность</option>
+              <option value="Compliance">Соответствие требованиям</option>
+              <option value="Technology">Технологический</option>
+            </select>
+          </div>
+          <div>
+            <label>Уровень влияния *</label>
+            <select name="impact_level">
+              <option value="Medium">Средний</option>
+              <option value="Low">Низкий</option>
+              <option value="High">Высокий</option>
+              <option value="Critical">Критический</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>Дата и время события *</label>
+            <input type="datetime-local" name="occurrence_date" required>
+          </div>
+          <div>
+            <label>Фактический ущерб</label>
+            <input name="actual_loss" type="number" min="0" value="0">
+          </div>
+        </div>
+        <button class="gradient-btn" type="submit">Зарегистрировать инцидент</button>
+      </div>
+    </form>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Мои инциденты</h2>
+          <p>Показываются только записи текущего работника и их текущий статус</p>
+        </div>
+      </div>
+      <div class="my-risk-list">
+        {% for incident in incidents %}
+          <div class="my-risk-item">
+            <div>
+              <strong>{{ incident.public_id }} {{ incident.title }}</strong>
+              <span>{{ incident.occurrence_date }} · Ущерб: {{ incident.actual_loss }}</span>
+              {% if incident.linked_risk %}
+                <span>Связанный риск: <a class="risk-link" href="{{ url_for('risk_detail', public_id=incident.linked_risk.public_id) }}">{{ incident.linked_risk.public_id }}</a></span>
+              {% endif %}
+            </div>
+            <span class="status-badge {{ 'created' if incident.status == 'PENDING' else 'completed' }}">
+              {{ "На проверке" if incident.status == "PENDING" else "Риск создан" }}
+            </span>
+          </div>
+        {% else %}
+          <div class="empty-state">Инцидентов пока нет.</div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+{% endblock %}

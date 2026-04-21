@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Error {{ code }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="auth-body">
+    <section class="auth-shell">
+      <div class="auth-card error-card">
+        <h1>{{ code }}</h1>
+        <p>{{ message }}</p>
+        <a class="gradient-btn back-link" href="{{ url_for('home') }}">Go back</a>
+      </div>
+    </section>
+  </body>
+</html>

@@ -1,0 +1,99 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header">
+    <h1>Пользователи</h1>
+    <p>Создание аккаунтов и одобрение заявок на доступ</p>
+  </section>
+
+  <section class="report-grid compact-metrics">
+    <article class="panel report-card">
+      <span>Всего аккаунтов</span>
+      <strong>{{ users|length }}</strong>
+    </article>
+    <article class="panel report-card danger">
+      <span>Ожидают одобрения</span>
+      <strong>{{ pending_count }}</strong>
+    </article>
+    <article class="panel report-card">
+      <span>Администратор</span>
+      <strong class="metric-text">{{ current_user.full_name }}</strong>
+    </article>
+  </section>
+
+  <div class="admin-layout">
+    <form class="panel form-panel" method="post">
+      <div class="panel-heading">
+        <div>
+          <h2>Добавить пользователя</h2>
+          <p>Созданный здесь аккаунт сразу получает доступ</p>
+        </div>
+      </div>
+      <div class="field-stack">
+        <label>ФИО *</label>
+        <input name="full_name" placeholder="Введите ФИО" required>
+        <label>Email *</label>
+        <input type="email" name="email" placeholder="name@company.com" required>
+        <label>Роль *</label>
+        <select name="role" required>
+          <option value="worker">Работник</option>
+          <option value="expert">Эксперт</option>
+          <option value="risk_manager">Риск-менеджер</option>
+          <option value="admin">Администратор</option>
+        </select>
+        <label>Временный пароль *</label>
+        <input type="password" name="password" placeholder="Минимум 6 символов" minlength="6" required>
+        <button class="primary-btn" type="submit">Создать аккаунт</button>
+      </div>
+    </form>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Список пользователей</h2>
+          <p>Новые заявки не получают доступ до одобрения</p>
+        </div>
+      </div>
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>ФИО</th>
+            <th>Email</th>
+            <th>Роль</th>
+            <th>Доступ</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+            <tr>
+              <td>{{ user.full_name }}</td>
+              <td>{{ user.email }}</td>
+              <td>{{ role_label(user.role) }}</td>
+              <td>
+                {% if user.is_approved %}
+                  <span class="status-badge success">Одобрен</span>
+                {% else %}
+                  <span class="status-badge medium">Ожидает</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="table-actions">
+                  {% if not user.is_approved %}
+                    <form method="post" action="{{ url_for('approve_user', user_id=user.id) }}">
+                      <button class="primary-btn small" type="submit">Одобрить</button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{{ url_for('deactivate_user', user_id=user.id) }}">
+                      <button class="ghost-btn small" type="submit">Отключить</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+{% endblock %}

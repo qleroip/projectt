@@ -1,0 +1,56 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header">
+    <h1>Expert Workspace</h1>
+    <p>Expert client: evaluate probability, impact and recommendations</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Assigned Risks</h2>
+        <p>Risk manager assigns risks, expert creates assessments</p>
+      </div>
+    </div>
+    <div class="task-list">
+      {% for risk in risks %}
+        <article class="task-card">
+          <div class="task-headline">
+            <div>
+              <h3>{{ risk.public_id }} {{ risk.title }}</h3>
+              <p>{{ risk.description }}</p>
+              <p>Owner: {{ risk.owner.full_name }} · Expert: {{ risk.expert.full_name if risk.expert else "Not assigned" }}</p>
+            </div>
+            <span class="status-badge {{ risk.status|lower }}">{{ risk.status }}</span>
+          </div>
+          {% if risk.assessments %}
+            <div class="assessment-preview">
+              <strong>Latest assessment: {{ risk.assessments[-1].severity_level }}</strong>
+              <span>Probability {{ risk.assessments[-1].probability }}/5 · Impact {{ risk.assessments[-1].impact_score }}/5</span>
+              <p>{{ risk.assessments[-1].recommendation }}</p>
+            </div>
+          {% endif %}
+          <form class="assessment-form" method="post">
+            <input type="hidden" name="risk_id" value="{{ risk.public_id }}">
+            <div class="form-grid">
+              <div>
+                <label>Probability *</label>
+                <input type="number" name="probability" min="1" max="5" step="1" required>
+              </div>
+              <div>
+                <label>Impact Score *</label>
+                <input type="number" name="impact_score" min="1" max="5" step="1" required>
+              </div>
+            </div>
+            <label>Recommendation *</label>
+            <textarea name="recommendation" rows="3" placeholder="Recommended preventive measures" required></textarea>
+            <button class="primary-btn" type="submit">Save Assessment</button>
+          </form>
+        </article>
+      {% else %}
+        <div class="empty-state">No assigned risks yet.</div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

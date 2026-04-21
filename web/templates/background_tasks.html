@@ -1,0 +1,106 @@
+{% extends "dashboard_base.html" %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <h1>Фоновые задачи</h1>
+      <p>Автоматические проверки, пересчеты и журнал действий системы</p>
+    </div>
+    <div class="page-header-actions">
+      <form method="post" action="{{ url_for('process_background_queue_step') }}">
+        <button class="ghost-btn" type="submit">Обновить очередь</button>
+      </form>
+      <form method="post" action="{{ url_for('process_background_tasks') }}">
+        <button class="primary-btn" type="submit">Обновить сводку</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="tasks-layout">
+    <section class="panel">
+      <div class="panel-heading">
+        <div>
+          <h2>Очередь анализа</h2>
+          <p>Приоритетные системные задачи риск-менеджмента</p>
+        </div>
+      </div>
+      <div class="task-list">
+        {% for task in tasks %}
+          <article class="task-card">
+            <div class="task-headline">
+              <div>
+                <h3>{{ task.title }}</h3>
+                <p>{{ task.description }}</p>
+              </div>
+              <div class="task-tags">
+                <span class="priority-tag {{ task.priority|lower }}">{{ priority_label(task.priority) }}</span>
+                <span class="task-status {{ task.status|lower }}">{{ task_status_label(task.status) }}</span>
+              </div>
+            </div>
+            <div class="progress-label">
+              <span>Прогресс</span>
+              <strong>{{ task.progress }}%</strong>
+            </div>
+            <div class="progress-bar"><span class="{{ task.status|lower }}" style="width: {{ task.progress }}%"></span></div>
+            <div class="task-meta">
+              <span>Начало: {{ task.started_at }}</span>
+              {% if task.eta %}<span>Ожидаемое завершение: {{ task.eta }}</span>{% endif %}
+            </div>
+          </article>
+        {% else %}
+          <div class="empty-state">Очередь пуста.</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="side-column">
+      <section class="panel compact-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Сводка рисков</h2>
+            <p>Сколько рисков находится в каждом статусе</p>
+          </div>
+        </div>
+        <div class="summary-list">
+          {% for item in ['ACTIVE', 'CREATED', 'COMPLETED', 'CANCELLED'] %}
+            <div class="summary-item {{ item|lower }}">
+              <span>{{ status_label(item) }}</span>
+              <strong>{{ summary[item] }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <section class="panel audit-wide-panel">
+    <div class="panel-heading">
+      <div>
+        <h2>Журнал аудита</h2>
+        <p>Последние действия пользователей и системы</p>
+      </div>
+    </div>
+    <table class="audit-table wide-audit-table">
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Пользователь</th>
+          <th>Действие</th>
+          <th>Объект</th>
+          <th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+          <tr>
+            <td>{{ log.timestamp }}</td>
+            <td>{{ log.user_name }}</td>
+            <td><span class="log-pill">{{ log.action }}</span></td>
+            <td>{{ log.resource }}</td>
+            <td><span class="status-badge {{ log.status|lower }}">{{ "Успешно" if log.status == "success" else "Ошибка" }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}

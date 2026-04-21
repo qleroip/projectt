@@ -1,0 +1,2 @@
+"""RiskGuard desktop package."""
+
