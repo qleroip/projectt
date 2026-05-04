@@ -1,0 +1,40 @@
+@startuml
+title RiskGuard - жизненный цикл риска
+
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam state {
+  BackgroundColor #FFFFFF
+  BorderColor #C8D5EA
+  FontColor #0F2346
+}
+skinparam ArrowColor #1F2F4F
+
+[*] --> CREATED : риск создан
+
+CREATED : Начальное состояние
+CREATED : Риск еще не в работе
+CREATED : Можно назначить эксперта
+
+ACTIVE : Риск в работе
+ACTIVE : Эксперт назначен
+ACTIVE : Можно отправлять оценку
+
+COMPLETED : Риск завершен
+COMPLETED : Действия закрыты
+
+CANCELLED : Риск отменен
+CANCELLED : Работа по риску прекращена
+
+CREATED --> ACTIVE : назначен эксперт\nи нажато "В работу"
+ACTIVE --> COMPLETED : завершить риск
+ACTIVE --> CANCELLED : отменить риск
+
+COMPLETED --> [*]
+CANCELLED --> [*]
+
+COMPLETED -[#red,dashed]-> ACTIVE : запрещено\nHTTP 409
+CANCELLED -[#red,dashed]-> ACTIVE : запрещено\nHTTP 409
+CREATED -[#red,dashed]-> COMPLETED : запрещено\nсначала ACTIVE
+
+@enduml

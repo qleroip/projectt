@@ -1,0 +1,126 @@
+@startuml
+title RiskGuard - ER-схема основных данных
+
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam linetype ortho
+skinparam entity {
+  BackgroundColor #FFFFFF
+  BorderColor #C8D5EA
+  FontColor #0F2346
+}
+
+entity "User" as User {
+  * id : int
+  --
+  full_name : string
+  email : string
+  password_hash : string
+  role : enum
+  is_approved : bool
+  joined_at : date
+}
+
+entity "Risk" as Risk {
+  * id : int
+  --
+  public_id : string
+  title : string
+  description : text
+  category : string
+  impact_level : string
+  status : enum
+  owner_id : FK
+  expert_id : FK
+}
+
+entity "IncidentIntake" as Intake {
+  * id : int
+  --
+  public_id : string
+  title : string
+  description : text
+  category : string
+  occurrence_date : datetime
+  actual_loss : number
+  reporter_id : FK
+  status : enum
+}
+
+entity "Incident" as Incident {
+  * id : int
+  --
+  risk_id : FK
+  description : text
+  occurrence_date : datetime
+  actual_loss : number
+  reporter_id : FK
+}
+
+entity "MitigationMeasure" as Measure {
+  * id : int
+  --
+  risk_id : FK
+  action : text
+  responsible_person : string
+  deadline : date
+  priority : string
+}
+
+entity "Assessment" as Assessment {
+  * id : int
+  --
+  risk_id : FK
+  expert_id : FK
+  probability : int
+  impact_score : int
+  severity_level : string
+  recommendation : text
+  date : date
+}
+
+entity "AuditLog" as Audit {
+  * id : int
+  --
+  user_id : FK
+  action : string
+  resource : string
+  status : string
+  created_at : datetime
+}
+
+entity "DomainEvent" as Event {
+  * id : int
+  --
+  event_type : string
+  aggregate_id : string
+  payload : json
+  status : enum
+  created_at : datetime
+}
+
+entity "RiskReadModel" as ReadModel {
+  * public_id : string
+  --
+  title : string
+  owner_name : string
+  expert_name : string
+  status : string
+  assessment_count : int
+  measure_count : int
+}
+
+User ||--o{ Risk : owns
+User ||--o{ Risk : assigned_as_expert
+User ||--o{ Intake : reports
+User ||--o{ Incident : reports
+User ||--o{ Assessment : creates
+User ||--o{ Audit : performs
+
+Risk ||--o{ Measure : has
+Risk ||--o{ Assessment : has
+Risk ||--o{ Incident : has
+Risk ||--|| ReadModel : projected_to
+Risk ||--o{ Event : emits
+
+@enduml

@@ -1,0 +1,53 @@
+@startuml
+title RiskGuard - архитектура системы
+
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam componentStyle rectangle
+skinparam ArrowColor #1F2F4F
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #C8D5EA
+  FontColor #0F2346
+}
+skinparam database {
+  BackgroundColor #EEF6FF
+  BorderColor #2F6BFF
+  FontColor #0F2346
+}
+
+actor "Работник" as Worker
+actor "Риск-менеджер" as Manager
+actor "Эксперт" as Expert
+actor "Администратор" as Admin
+
+component "APK\nReact Native / Expo" as APK
+component "Web-панель\nFlask templates" as Web
+component "Desktop\nTauri + React" as Desktop
+
+component "Flask API\nJWT + RBAC + BFF + CQRS" as API
+database "SQLite\nriskguard_v3.db" as DB
+queue "Domain Event Queue\nтаблица domain_event" as Queue
+component "Read Model\nrisk_read_model" as ReadModel
+component "Отчеты и аудит\nCSV + AuditLog + Metrics" as Reports
+
+Worker --> APK : регистрирует инцидент
+Manager --> Web : управляет рисками
+Admin --> Web : одобряет пользователей
+Expert --> Desktop : оценивает риски
+
+APK --> API : /auth, /api/incidents
+Web --> API : управление рисками и отчетами
+Desktop --> API : /api/expert/*
+
+API --> DB : write-model через ORM
+API --> Queue : создает domain events
+Queue --> ReadModel : обработка событий
+API --> ReadModel : query через raw SQL
+API --> Reports : аудит, метрики, экспорт
+
+Reports --> DB
+ReadModel --> DB
+
+@enduml

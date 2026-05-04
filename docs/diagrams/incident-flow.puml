@@ -1,0 +1,52 @@
+@startuml
+title RiskGuard - обработка инцидента
+
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #1F2F4F
+  LifeLineBorderColor #C8D5EA
+  ParticipantBorderColor #C8D5EA
+  ParticipantBackgroundColor #FFFFFF
+  ParticipantFontColor #0F2346
+}
+
+actor "Работник" as Worker
+participant "APK" as APK
+participant "Flask API" as API
+database "База данных" as DB
+participant "Web-панель\nриск-менеджера" as Web
+participant "Desktop\nэксперта" as Desktop
+
+Worker -> APK : Заполняет форму инцидента
+APK -> API : POST /api/incidents
+API -> DB : Сохраняет IncidentIntake\nstatus = PENDING
+API --> APK : INQ-xxx создан
+
+Web -> API : Загружает очередь инцидентов
+API -> DB : Читает IncidentIntake
+API --> Web : Список входящих инцидентов
+
+actor "Риск-менеджер" as Manager
+Manager -> Web : Проверяет инцидент\nи нажимает "Создать риск"
+Web -> API : Создать Risk из IncidentIntake
+API -> DB : Создает Risk\nи связывает источник
+API -> DB : Обновляет IncidentIntake\nstatus = CONVERTED
+API --> Web : Риск создан
+
+Manager -> Web : Назначает эксперта\nи переводит риск в работу
+Web -> API : assign expert + ACTIVE
+API -> DB : Обновляет Risk
+
+actor "Эксперт" as Expert
+Expert -> Desktop : Открывает назначенные риски
+Desktop -> API : GET /api/expert/risks
+API -> DB : Читает только назначенные риски
+API --> Desktop : Карточка риска
+
+Expert -> Desktop : Вводит вероятность,\nвлияние и рекомендацию
+Desktop -> API : POST /api/risks/{id}/assessments
+API -> DB : Сохраняет Assessment
+API --> Desktop : Оценка принята
+
+@enduml
