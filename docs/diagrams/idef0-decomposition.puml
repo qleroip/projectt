@@ -1,0 +1,51 @@
+@startuml
+title RiskGuard - IDEF0 декомпозиция A0
+
+left to right direction
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam ArrowColor #1F2F4F
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #C8D5EA
+  FontColor #0F2346
+}
+
+component "A1\nРегистрация\nинцидента" as A1
+component "A2\nПроверка инцидента\nи создание риска" as A2
+component "A3\nНазначение эксперта\nи запуск в работу" as A3
+component "A4\nЭкспертная оценка\nриска" as A4
+component "A5\nПлан минимизации,\nотчет и аудит" as A5
+
+component "Инцидент\nот работника" as I1
+component "Очередь\nинцидентов" as D1
+component "Карточка\nриска" as D2
+component "Назначенный\nэксперт" as D3
+component "Оценка\nэксперта" as D4
+component "Отчет и план\nминимизации" as O1
+
+I1 --> A1
+A1 --> D1
+D1 --> A2
+A2 --> D2
+D2 --> A3
+A3 --> D3
+D3 --> A4
+A4 --> D4
+D4 --> A5
+A5 --> O1
+
+component "JWT + RBAC" as C1
+component "Правила статусов\nCREATED/ACTIVE/\nCOMPLETED/CANCELLED" as C2
+component "Политика\nриск-менеджмента" as C3
+
+C1 -down-> A1
+C1 -down-> A2
+C1 -down-> A4
+C2 -down-> A3
+C2 -down-> A5
+C3 -down-> A2
+C3 -down-> A5
+
+@enduml

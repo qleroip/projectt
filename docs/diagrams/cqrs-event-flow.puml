@@ -1,0 +1,35 @@
+@startuml
+title RiskGuard - CQRS и обновление read-model
+
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam ArrowColor #1F2F4F
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #C8D5EA
+  FontColor #0F2346
+}
+skinparam database {
+  BackgroundColor #EEF6FF
+  BorderColor #2F6BFF
+}
+
+component "Command API\nPOST/PATCH /api/commands/*" as Commands
+component "Service layer\nORM + validation" as Services
+database "Write Model\nRisk, Assessment,\nMitigation, Incident" as WriteModel
+queue "Domain Event Queue\ndomain_event" as EventQueue
+component "Event Processor\n/api/commands/events/process" as Processor
+database "Read Model\nrisk_read_model" as ReadModel
+component "Query API\nGET /api/queries/*" as Queries
+component "BFF API\n/api/bff/web|mobile|desktop" as BFF
+
+Commands --> Services : команда
+Services --> WriteModel : транзакция
+Services --> EventQueue : enqueue event
+EventQueue --> Processor : pending events
+Processor --> ReadModel : projection update
+Queries --> ReadModel : raw SQL
+BFF --> ReadModel : агрегаты под UI
+
+@enduml

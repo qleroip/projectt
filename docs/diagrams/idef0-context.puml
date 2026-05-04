@@ -1,0 +1,48 @@
+@startuml
+title RiskGuard - IDEF0 контекстная диаграмма A-0
+
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam componentStyle rectangle
+skinparam ArrowColor #1F2F4F
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #C8D5EA
+  FontColor #0F2346
+}
+
+component "A-0\nАнализ и предотвращение\nоперационных рисков" as A0 #FFFFFF
+
+component "Данные об инцидентах\nIncident Data" as Input1
+component "Отчеты подразделений\nDepartment Reports" as Input2
+
+component "ISO 31000 / ГОСТ Р ИСО 31000" as Control1
+component "Внутренняя политика\nриск-менеджмента" as Control2
+component "RBAC и правила\nжизненного цикла риска" as Control3
+
+component "Риск-менеджер" as Mech1
+component "Эксперт" as Mech2
+component "Работник" as Mech3
+component "Программная система\nRiskGuard" as Mech4
+
+component "План минимизации\nMitigation Plan" as Output1
+component "Отчет об уровне риска\nRisk Level Report" as Output2
+component "Журнал аудита\nAudit Log" as Output3
+
+Input1 -right-> A0
+Input2 -right-> A0
+
+Control1 -down-> A0
+Control2 -down-> A0
+Control3 -down-> A0
+
+Mech1 -up-> A0
+Mech2 -up-> A0
+Mech3 -up-> A0
+Mech4 -up-> A0
+
+A0 -right-> Output1
+A0 -right-> Output2
+A0 -right-> Output3
+
+@enduml

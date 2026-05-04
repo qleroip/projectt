@@ -1,0 +1,59 @@
+@startuml
+title RiskGuard - Sequence обработки риска
+
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam sequence {
+  ArrowColor #1F2F4F
+  LifeLineBorderColor #C8D5EA
+  ParticipantBorderColor #C8D5EA
+  ParticipantBackgroundColor #FFFFFF
+  ParticipantFontColor #0F2346
+}
+
+actor "Работник" as Worker
+participant "APK" as APK
+participant "Flask API" as API
+database "SQLite" as DB
+participant "Web\nриск-менеджера" as Web
+participant "Desktop\nэксперта" as Desktop
+
+Worker -> APK : Заполняет инцидент
+APK -> API : POST /api/incidents
+API -> DB : Создать IncidentIntake
+API --> APK : INQ-xxx, PENDING
+
+Web -> API : Получить очередь инцидентов
+API -> DB : SELECT IncidentIntake
+API --> Web : Список инцидентов
+
+Web -> API : Создать риск из инцидента
+API -> DB : INSERT Risk
+API -> DB : UPDATE IncidentIntake = CONVERTED
+API -> DB : INSERT DomainEvent(RiskCreated)
+API --> Web : RISK-xxx создан
+
+Web -> API : Назначить эксперта
+API -> DB : UPDATE Risk.expert_id
+API -> DB : INSERT DomainEvent(RiskExpertAssigned)
+API --> Web : Эксперт назначен
+
+Web -> API : Перевести риск в ACTIVE
+API -> DB : Проверить переход статуса
+API -> DB : UPDATE Risk.status = ACTIVE
+API -> DB : INSERT DomainEvent(RiskStatusChanged)
+
+Desktop -> API : GET /api/expert/risks
+API -> DB : Найти риски эксперта
+API --> Desktop : Назначенные риски
+
+Desktop -> API : POST /api/risks/{id}/assessments
+API -> DB : INSERT Assessment
+API -> DB : INSERT DomainEvent(RiskAssessed)
+API --> Desktop : Оценка сохранена
+
+Web -> API : Сформировать отчет
+API -> DB : SELECT risks + assessments + measures
+API --> Web : Отчет / CSV
+
+@enduml

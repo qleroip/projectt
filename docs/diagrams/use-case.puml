@@ -1,0 +1,59 @@
+@startuml
+title RiskGuard - Use Case диаграмма
+
+left to right direction
+skinparam backgroundColor #F7FAFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #C8D5EA
+  FontColor #0F2346
+}
+skinparam actor {
+  BorderColor #1F2F4F
+  FontColor #0F2346
+}
+
+actor "Работник" as Worker
+actor "Риск-менеджер" as Manager
+actor "Эксперт" as Expert
+actor "Администратор" as Admin
+
+rectangle "RiskGuard" {
+  usecase "Зарегистрировать\nинцидент" as UC_Incident
+  usecase "Просмотреть очередь\nинцидентов" as UC_Intake
+  usecase "Создать риск\nиз инцидента" as UC_CreateRisk
+  usecase "Создать план\nминимизации" as UC_Mitigation
+  usecase "Назначить\nэксперта" as UC_Assign
+  usecase "Изменить статус\nриска" as UC_Status
+  usecase "Просмотреть\nназначенные риски" as UC_ViewAssigned
+  usecase "Отправить\nэкспертную оценку" as UC_Assess
+  usecase "Сформировать\nотчет" as UC_Report
+  usecase "Одобрить\nпользователя" as UC_Approve
+  usecase "Просмотреть\nжурнал аудита" as UC_Audit
+}
+
+Worker --> UC_Incident
+
+Manager --> UC_Intake
+Manager --> UC_CreateRisk
+Manager --> UC_Mitigation
+Manager --> UC_Assign
+Manager --> UC_Status
+Manager --> UC_Report
+Manager --> UC_Audit
+
+Expert --> UC_ViewAssigned
+Expert --> UC_Assess
+
+Admin --> UC_Approve
+Admin --> UC_Audit
+Admin --> UC_Assign
+Admin --> UC_Status
+
+UC_CreateRisk ..> UC_Intake : <<include>>
+UC_Status ..> UC_Assign : <<requires for ACTIVE>>
+UC_Assess ..> UC_ViewAssigned : <<include>>
+
+@enduml
