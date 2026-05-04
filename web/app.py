@@ -319,6 +319,53 @@ class ApiRequestMetric(db.Model):
 
 
 QUERY_CACHE: dict[str, dict[str, Any]] = {}
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 100
+
+
+def api_error(message: str, status_code: int, code: str | None = None, details: Any | None = None):
+    payload: dict[str, Any] = {
+        "error": message,  # Backward compatibility for existing APK/desktop clients.
+        "code": code or f"HTTP_{status_code}",
+        "message": message,
+    }
+    if details is not None:
+        payload["details"] = details
+    return jsonify(payload), status_code
+
+
+def paginate_collection(items: Iterable[Any]) -> tuple[list[Any], dict[str, Any] | None]:
+    items_list = list(items)
+    pagination_requested = any(name in request.args for name in ("page", "limit", "offset"))
+    if not pagination_requested:
+        return items_list, None
+
+    page = request.args.get("page", type=int) or 1
+    limit = request.args.get("limit", type=int) or DEFAULT_PAGE_SIZE
+    offset = request.args.get("offset", type=int)
+    page = max(page, 1)
+    limit = max(1, min(limit, MAX_PAGE_SIZE))
+    if offset is None:
+        offset = (page - 1) * limit
+    offset = max(offset, 0)
+
+    total = len(items_list)
+    sliced = items_list[offset : offset + limit]
+    return sliced, {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "page": (offset // limit) + 1,
+        "has_next": offset + limit < total,
+    }
+
+
+def collection_response(items: Iterable[Any], serializer):
+    page_items, pagination = paginate_collection(items)
+    data = [serializer(item) for item in page_items]
+    if pagination is None:
+        return jsonify(data)
+    return jsonify({"items": data, "pagination": pagination})
 
 
 def create_access_token(user: User) -> str:
@@ -356,14 +403,14 @@ def api_auth_required(view):
         auth_header = request.headers.get("Authorization", "")
         token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else ""
         if not token:
-            return jsonify({"error": "Missing token"}), 401
+            return api_error("Missing token", 401, "AUTH_TOKEN_MISSING")
         try:
             payload = decode_token(token)
         except jwt.PyJWTError:
-            return jsonify({"error": "Invalid token"}), 401
+            return api_error("Invalid token", 401, "AUTH_TOKEN_INVALID")
         g.api_user = db.session.get(User, payload["user_id"])
         if not g.api_user or not g.api_user.is_approved:
-            return jsonify({"error": "User not found"}), 401
+            return api_error("User not found", 401, "AUTH_USER_NOT_FOUND")
         return view(*args, **kwargs)
 
     return wrapped
@@ -375,7 +422,7 @@ def api_roles_required(*roles: str):
         @api_auth_required
         def wrapped(*args, **kwargs):
             if g.api_user.role not in roles:
-                return jsonify({"error": "Forbidden"}), 403
+                return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
             return view(*args, **kwargs)
 
         return wrapped
@@ -1226,6 +1273,7 @@ def logout():
     return redirect(url_for("auth_page"))
 
 
+@app.post("/api/v1/auth/register")
 @app.post("/auth/register")
 def api_register():
     payload = request.get_json(silent=True) or {}
@@ -1236,9 +1284,9 @@ def api_register():
     if role not in {Role.WORKER.value, Role.EXPERT.value, Role.RISK_MANAGER.value}:
         role = Role.EXPERT.value
     if not full_name or not email or not password:
-        return jsonify({"error": "full_name, email and password are required"}), 400
+        return api_error("full_name, email and password are required", 400, "VALIDATION_ERROR")
     if db.session.execute(db.select(User).where(User.email == email)).scalar_one_or_none():
-        return jsonify({"error": "User already exists"}), 409
+        return api_error("User already exists", 409, "USER_ALREADY_EXISTS")
     user = User(
         full_name=full_name,
         email=email,
@@ -1252,6 +1300,7 @@ def api_register():
     return jsonify({"message": "Заявка отправлена на одобрение администратором"}), 201
 
 
+@app.post("/api/v1/auth/login")
 @app.post("/auth/login")
 def api_login():
     payload = request.get_json(silent=True) or {}
@@ -1259,17 +1308,19 @@ def api_login():
     password = payload.get("password") or ""
     user = db.session.execute(db.select(User).where(User.email == email)).scalar_one_or_none()
     if not user or not check_password_hash(user.password_hash, password):
-        return jsonify({"error": "Invalid credentials"}), 401
+        return api_error("Invalid credentials", 401, "INVALID_CREDENTIALS")
     if not user.is_approved:
-        return jsonify({"error": "Account awaits administrator approval"}), 403
+        return api_error("Account awaits administrator approval", 403, "ACCOUNT_PENDING_APPROVAL")
     return jsonify({"access_token": create_access_token(user), "token_type": "bearer"})
 
 
+@app.get("/api/v1/ping")
 @app.get("/api/ping")
 def api_ping():
     return jsonify({"ok": True, "message": "pong"})
 
 
+@app.get("/api/v1/queries/lag")
 @app.get("/api/queries/lag")
 @api_roles_required(Role.ADMIN.value, Role.RISK_MANAGER.value, Role.EXPERT.value)
 def api_query_lag():
@@ -1282,6 +1333,7 @@ def api_query_lag():
     return jsonify({"pending_events": pending, "failed_events": failed, "eventual_consistency": True})
 
 
+@app.get("/api/v1/queries/risks")
 @app.get("/api/queries/risks")
 @api_roles_required(Role.ADMIN.value, Role.RISK_MANAGER.value, Role.EXPERT.value)
 def api_query_risks():
@@ -1290,20 +1342,22 @@ def api_query_risks():
     rows = read_model_risks_query(status=status, search=search)
     if g.api_user.role == Role.EXPERT.value:
         rows = [item for item in rows if item.get("expert_name") == g.api_user.full_name]
-    return jsonify([dto_web_risk_list_item(item) for item in rows])
+    return collection_response(rows, dto_web_risk_list_item)
 
 
+@app.get("/api/v1/queries/risks/<public_id>")
 @app.get("/api/queries/risks/<public_id>")
 @api_roles_required(Role.ADMIN.value, Role.RISK_MANAGER.value, Role.EXPERT.value)
 def api_query_risk_detail(public_id: str):
     row = read_model_risk_by_public_id(public_id)
     if not row:
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404, "RISK_NOT_FOUND")
     if g.api_user.role == Role.EXPERT.value and row.get("expert_name") != g.api_user.full_name:
-        return jsonify({"error": "Forbidden"}), 403
+        return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
     return jsonify(dto_web_risk_list_item(row))
 
 
+@app.post("/api/v1/commands/risks")
 @app.post("/api/commands/risks")
 @api_roles_required(Role.RISK_MANAGER.value, Role.ADMIN.value)
 def api_command_create_risk():
@@ -1313,61 +1367,64 @@ def api_command_create_risk():
         risk = create_risk_with_measures(payload, measures, g.api_user)
     except ValueError as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 400
+        return api_error(str(error), 400, "VALIDATION_ERROR")
     pending_events = db.session.scalar(
         db.select(func.count(DomainEvent.id)).where(DomainEvent.status == DomainEventStatus.PENDING.value)
     ) or 0
     return jsonify({"id": risk.public_id, "status": risk.status, "pending_events": pending_events, "eventual_consistency": True}), 201
 
 
+@app.patch("/api/v1/commands/risks/<public_id>/status")
 @app.patch("/api/commands/risks/<public_id>/status")
 @api_roles_required(Role.RISK_MANAGER.value, Role.ADMIN.value)
 def api_command_change_risk_status(public_id: str):
     risk = db.session.execute(db.select(Risk).where(Risk.public_id == public_id)).scalar_one_or_none()
     if not risk:
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404, "RISK_NOT_FOUND")
     if not can_manage_risk(g.api_user, risk):
-        return jsonify({"error": "Forbidden"}), 403
+        return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
     new_status = (request.get_json(silent=True) or {}).get("status", "")
     try:
         transition_risk_status(risk, new_status, g.api_user)
         db.session.commit()
     except RuntimeError as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 409
+        return api_error(str(error), 409, "INVALID_STATUS_TRANSITION")
     except ValueError as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 400
+        return api_error(str(error), 400, "VALIDATION_ERROR")
     pending_events = db.session.scalar(
         db.select(func.count(DomainEvent.id)).where(DomainEvent.status == DomainEventStatus.PENDING.value)
     ) or 0
     return jsonify({"id": risk.public_id, "status": risk.status, "pending_events": pending_events, "eventual_consistency": True})
 
 
+@app.post("/api/v1/commands/risks/<public_id>/assign-expert")
 @app.post("/api/commands/risks/<public_id>/assign-expert")
 @api_roles_required(Role.RISK_MANAGER.value, Role.ADMIN.value)
 def api_command_assign_expert(public_id: str):
     risk = db.session.execute(db.select(Risk).where(Risk.public_id == public_id)).scalar_one_or_none()
     if not risk:
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404, "RISK_NOT_FOUND")
     if not can_manage_risk(g.api_user, risk):
-        return jsonify({"error": "Forbidden"}), 403
+        return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
     expert_id = int((request.get_json(silent=True) or {}).get("expert_id") or 0)
     expert = db.session.get(User, expert_id)
     if not expert:
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404, "EXPERT_NOT_FOUND")
     try:
         assign_expert_to_risk(risk, expert, g.api_user)
         db.session.commit()
     except ValueError as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 400
+        return api_error(str(error), 400, "VALIDATION_ERROR")
     pending_events = db.session.scalar(
         db.select(func.count(DomainEvent.id)).where(DomainEvent.status == DomainEventStatus.PENDING.value)
     ) or 0
     return jsonify({"id": risk.public_id, "expert": expert.full_name, "pending_events": pending_events, "eventual_consistency": True})
 
 
+@app.post("/api/v1/commands/events/process")
 @app.post("/api/commands/events/process")
 @api_roles_required(Role.RISK_MANAGER.value, Role.ADMIN.value)
 def api_command_process_events():
@@ -1379,6 +1436,7 @@ def api_command_process_events():
     return jsonify(summary)
 
 
+@app.get("/api/v1/bff/web/dashboard")
 @app.get("/api/bff/web/dashboard")
 @api_roles_required(Role.RISK_MANAGER.value, Role.ADMIN.value)
 def api_bff_web_dashboard():
@@ -1418,6 +1476,7 @@ def api_bff_web_dashboard():
     )
 
 
+@app.get("/api/v1/bff/mobile/home")
 @app.get("/api/bff/mobile/home")
 @api_roles_required(Role.WORKER.value, Role.ADMIN.value)
 def api_bff_mobile_home():
@@ -1444,6 +1503,7 @@ def api_bff_mobile_home():
     )
 
 
+@app.get("/api/v1/bff/desktop/expert")
 @app.get("/api/bff/desktop/expert")
 @api_roles_required(Role.EXPERT.value, Role.ADMIN.value)
 def api_bff_desktop_expert():
@@ -1476,6 +1536,7 @@ def api_bff_desktop_expert():
     )
 
 
+@app.get("/api/v1/heatmap")
 @app.get("/api/heatmap")
 @api_roles_required(Role.ADMIN.value, Role.RISK_MANAGER.value)
 def api_heatmap():
@@ -1531,6 +1592,7 @@ def api_heatmap():
     )
 
 
+@app.get("/api/v1/me")
 @app.get("/api/me")
 @api_auth_required
 def api_me():
@@ -1546,11 +1608,12 @@ def api_me():
     )
 
 
+@app.get("/api/v1/legacy/risks")
 @app.get("/api/legacy/risks")
 @api_auth_required
 def api_risks():
     if g.api_user.role == Role.WORKER.value:
-        return jsonify({"error": "Forbidden"}), 403
+        return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
     risks = (
         db.session.execute(
             db.select(Risk)
@@ -1563,26 +1626,25 @@ def api_risks():
     )
     if g.api_user.role == Role.EXPERT.value:
         risks = [risk for risk in risks if risk.expert_id == g.api_user.id]
-    return jsonify(
-        [
-            {
-                "id": risk.public_id,
-                "title": risk.title,
-                "description": risk.description,
-                "category": risk.category,
-                "impact_level": risk.impact_level,
-                "owner": risk.owner.full_name,
-                "expert": risk.expert.full_name if risk.expert else None,
-                "status": risk.status,
-                "measure_count": len(risk.measures),
-                "assessment_count": len(risk.assessments),
-                "incident_count": len(risk.incidents),
-            }
-            for risk in risks
-        ]
+    return collection_response(
+        risks,
+        lambda risk: {
+            "id": risk.public_id,
+            "title": risk.title,
+            "description": risk.description,
+            "category": risk.category,
+            "impact_level": risk.impact_level,
+            "owner": risk.owner.full_name,
+            "expert": risk.expert.full_name if risk.expert else None,
+            "status": risk.status,
+            "measure_count": len(risk.measures),
+            "assessment_count": len(risk.assessments),
+            "incident_count": len(risk.incidents),
+        },
     )
 
 
+@app.get("/api/v1/expert/risks")
 @app.get("/api/expert/risks")
 @api_roles_required(Role.EXPERT.value, Role.ADMIN.value)
 def api_expert_risks():
@@ -1600,9 +1662,10 @@ def api_expert_risks():
     if g.api_user.role == Role.EXPERT.value:
         query = query.where(Risk.expert_id == g.api_user.id)
     risks = db.session.execute(query).unique().scalars().all()
-    return jsonify([_serialize_expert_risk(risk, g.api_user, include_details=False) for risk in risks])
+    return collection_response(risks, lambda risk: _serialize_expert_risk(risk, g.api_user, include_details=False))
 
 
+@app.get("/api/v1/expert/risks/<public_id>")
 @app.get("/api/expert/risks/<public_id>")
 @api_roles_required(Role.EXPERT.value, Role.ADMIN.value)
 def api_expert_risk_detail(public_id: str):
@@ -1622,12 +1685,13 @@ def api_expert_risk_detail(public_id: str):
         .scalar_one_or_none()
     )
     if not risk:
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404, "RISK_NOT_FOUND")
     if g.api_user.role == Role.EXPERT.value and risk.expert_id != g.api_user.id:
-        return jsonify({"error": "Forbidden"}), 403
+        return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
     return jsonify(_serialize_expert_risk(risk, g.api_user, include_details=True))
 
 
+@app.get("/api/v1/expert/assessments")
 @app.get("/api/expert/assessments")
 @api_roles_required(Role.EXPERT.value, Role.ADMIN.value)
 def api_expert_assessments():
@@ -1635,23 +1699,22 @@ def api_expert_assessments():
     if g.api_user.role == Role.EXPERT.value:
         query = query.where(Assessment.expert_id == g.api_user.id)
     assessments = db.session.execute(query).scalars().all()
-    return jsonify(
-        [
-            {
-                "id": item.id,
-                "risk_id": item.risk.public_id if item.risk else "",
-                "risk_title": item.risk.title if item.risk else "",
-                "probability": item.probability,
-                "impact_score": item.impact_score,
-                "recommendation": item.recommendation,
-                "severity_level": item.severity_level,
-                "date": item.date.isoformat() if item.date else "",
-            }
-            for item in assessments
-        ]
+    return collection_response(
+        assessments,
+        lambda item: {
+            "id": item.id,
+            "risk_id": item.risk.public_id if item.risk else "",
+            "risk_title": item.risk.title if item.risk else "",
+            "probability": item.probability,
+            "impact_score": item.impact_score,
+            "recommendation": item.recommendation,
+            "severity_level": item.severity_level,
+            "date": item.date.isoformat() if item.date else "",
+        },
     )
 
 
+@app.post("/api/v1/incidents")
 @app.post("/api/incidents")
 @api_roles_required(Role.WORKER.value, Role.ADMIN.value)
 def api_create_incident():
@@ -1660,26 +1723,28 @@ def api_create_incident():
         incident = create_incident_intake(payload, g.api_user)
     except (ValueError, KeyError) as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 400
+        return api_error(str(error), 400, "VALIDATION_ERROR")
     return jsonify({"id": incident.public_id, "status": incident.status}), 201
 
 
+@app.post("/api/v1/risks/<public_id>/assessments")
 @app.post("/api/risks/<public_id>/assessments")
 @api_roles_required(Role.EXPERT.value, Role.ADMIN.value)
 def api_create_assessment(public_id: str):
     risk = db.session.execute(db.select(Risk).where(Risk.public_id == public_id)).scalar_one_or_none()
     if not risk:
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404, "RISK_NOT_FOUND")
     if not can_assess_risk(g.api_user, risk):
-        return jsonify({"error": "Forbidden"}), 403
+        return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
     try:
         assessment = create_assessment(risk, g.api_user, request.get_json(silent=True) or {})
     except (ValueError, KeyError) as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 400
+        return api_error(str(error), 400, "VALIDATION_ERROR")
     return jsonify({"id": assessment.id, "severity_level": assessment.severity_level}), 201
 
 
+@app.post("/api/v1/legacy/risks")
 @app.post("/api/legacy/risks")
 @api_roles_required(Role.RISK_MANAGER.value, Role.ADMIN.value)
 def api_create_risk():
@@ -1689,28 +1754,29 @@ def api_create_risk():
         risk = create_risk_with_measures(payload, measures, g.api_user)
     except ValueError as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 400
+        return api_error(str(error), 400, "VALIDATION_ERROR")
     return jsonify({"id": risk.public_id, "status": risk.status}), 201
 
 
+@app.patch("/api/v1/legacy/risks/<public_id>/status")
 @app.patch("/api/legacy/risks/<public_id>/status")
 @api_roles_required(Role.RISK_MANAGER.value, Role.ADMIN.value)
 def api_change_status(public_id: str):
     risk = db.session.execute(db.select(Risk).where(Risk.public_id == public_id)).scalar_one_or_none()
     if not risk:
-        return jsonify({"error": "Not found"}), 404
+        return api_error("Not found", 404, "RISK_NOT_FOUND")
     if not can_manage_risk(g.api_user, risk):
-        return jsonify({"error": "Forbidden"}), 403
+        return api_error("Forbidden", 403, "ACCESS_FORBIDDEN")
     new_status = (request.get_json(silent=True) or {}).get("status", "")
     try:
         transition_risk_status(risk, new_status, g.api_user)
         db.session.commit()
     except RuntimeError as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 409
+        return api_error(str(error), 409, "INVALID_STATUS_TRANSITION")
     except ValueError as error:
         db.session.rollback()
-        return jsonify({"error": str(error)}), 400
+        return api_error(str(error), 400, "VALIDATION_ERROR")
     return jsonify({"id": risk.public_id, "status": risk.status})
 
 

@@ -8,9 +8,86 @@ All protected endpoints require:
 Authorization: Bearer <access_token>
 ```
 
+## API versioning
+
+Current stable version prefix: `/api/v1`.
+
+For demo compatibility, the previous unversioned routes are still available and return the same payloads:
+
+- `/auth/login` and `/api/v1/auth/login`
+- `/auth/register` and `/api/v1/auth/register`
+- `/api/...` and `/api/v1/...`
+
+New APK, desktop and integration clients should prefer `/api/v1/*`. Existing clients do not need rebuilds while legacy aliases are kept.
+
+## Error format
+
+API errors use one common JSON format. The `error` field is intentionally kept for old clients.
+
+```json
+{
+  "error": "Forbidden",
+  "code": "ACCESS_FORBIDDEN",
+  "message": "Forbidden",
+  "details": {
+    "field": "optional extra context"
+  }
+}
+```
+
+Common status codes:
+
+- `400` / `VALIDATION_ERROR` - invalid request fields.
+- `401` / `AUTH_TOKEN_MISSING`, `AUTH_TOKEN_INVALID`, `INVALID_CREDENTIALS` - authentication problem.
+- `403` / `ACCESS_FORBIDDEN`, `ACCOUNT_PENDING_APPROVAL` - authenticated but not allowed.
+- `404` / `RISK_NOT_FOUND`, `EXPERT_NOT_FOUND` - entity not found.
+- `409` / `INVALID_STATUS_TRANSITION`, `USER_ALREADY_EXISTS` - business conflict.
+
+## Pagination
+
+List endpoints keep the old response format unless pagination parameters are provided.
+
+Without pagination:
+
+```json
+[
+  { "id": "RISK-001" }
+]
+```
+
+With `page`, `limit` or `offset`:
+
+```http
+GET /api/v1/queries/risks?page=1&limit=20
+```
+
+```json
+{
+  "items": [
+    { "id": "RISK-001" }
+  ],
+  "pagination": {
+    "total": 42,
+    "limit": 20,
+    "offset": 0,
+    "page": 1,
+    "has_next": true
+  }
+}
+```
+
+Supported by:
+
+- `GET /api/v1/queries/risks`
+- `GET /api/v1/legacy/risks`
+- `GET /api/v1/expert/risks`
+- `GET /api/v1/expert/assessments`
+
 ## Auth
 
-### POST `/auth/login`
+### POST `/api/v1/auth/login`
+
+Legacy alias: `POST /auth/login`
 
 Request:
 
@@ -30,7 +107,9 @@ Response:
 }
 ```
 
-### POST `/auth/register`
+### POST `/api/v1/auth/register`
+
+Legacy alias: `POST /auth/register`
 
 Creates an access request. The account must be approved by an administrator.
 
@@ -58,7 +137,9 @@ Response `201`:
 
 ## Common profile endpoint
 
-### GET `/api/me`
+### GET `/api/v1/me`
+
+Legacy alias: `GET /api/me`
 
 Returns current authorized user.
 
@@ -77,7 +158,9 @@ Response:
 
 ## Desktop Client: Expert
 
-### GET `/api/expert/risks`
+### GET `/api/v1/expert/risks`
+
+Legacy alias: `GET /api/expert/risks`
 
 Allowed roles: `expert`, `admin`.
 
@@ -113,7 +196,9 @@ Response item:
 }
 ```
 
-### GET `/api/expert/risks/<risk_id>`
+### GET `/api/v1/expert/risks/<risk_id>`
+
+Legacy alias: `GET /api/expert/risks/<risk_id>`
 
 Allowed roles: `expert`, `admin`.
 
@@ -123,7 +208,9 @@ Response includes detailed fields:
 - `mitigations` (array of actions)
 - `my_assessment`
 
-### GET `/api/expert/assessments`
+### GET `/api/v1/expert/assessments`
+
+Legacy alias: `GET /api/expert/assessments`
 
 Allowed roles: `expert`, `admin`.
 
@@ -144,7 +231,9 @@ Response item:
 }
 ```
 
-### POST `/api/risks/<risk_id>/assessments`
+### POST `/api/v1/risks/<risk_id>/assessments`
+
+Legacy alias: `POST /api/risks/<risk_id>/assessments`
 
 Creates an expert assessment for an assigned risk.
 
@@ -171,7 +260,9 @@ Response:
 
 ## APK Client: Worker
 
-### POST `/api/incidents`
+### POST `/api/v1/incidents`
+
+Legacy alias: `POST /api/incidents`
 
 Creates an incident intake item for risk-manager review. It does not create a risk automatically.
 
@@ -201,19 +292,25 @@ Response:
 
 ## Web/API Client: Risk Manager
 
-### GET `/api/legacy/risks` (legacy)
+### GET `/api/v1/legacy/risks` (legacy)
+
+Legacy alias: `GET /api/legacy/risks`
 
 Allowed roles: `risk_manager`, `expert`, `admin`.
 
 For `expert`, returns only assigned risks. For `worker`, returns `403`.
 
-### POST `/api/legacy/risks` (legacy)
+### POST `/api/v1/legacy/risks` (legacy)
+
+Legacy alias: `POST /api/legacy/risks`
 
 Creates a risk with mitigation measures in one transaction.
 
 Allowed roles: `risk_manager`, `admin`.
 
-### PATCH `/api/legacy/risks/<risk_id>/status` (legacy)
+### PATCH `/api/v1/legacy/risks/<risk_id>/status` (legacy)
+
+Legacy alias: `PATCH /api/legacy/risks/<risk_id>/status`
 
 Changes risk status.
 
@@ -239,7 +336,9 @@ Notes:
 
 ### Commands (write model, ORM)
 
-### POST `/api/commands/risks`
+### POST `/api/v1/commands/risks`
+
+Legacy alias: `POST /api/commands/risks`
 
 Create risk + measures in one transaction.
 
@@ -254,15 +353,21 @@ Response:
 }
 ```
 
-### PATCH `/api/commands/risks/<risk_id>/status`
+### PATCH `/api/v1/commands/risks/<risk_id>/status`
+
+Legacy alias: `PATCH /api/commands/risks/<risk_id>/status`
 
 Change status in write model, enqueue domain event.
 
-### POST `/api/commands/risks/<risk_id>/assign-expert`
+### POST `/api/v1/commands/risks/<risk_id>/assign-expert`
+
+Legacy alias: `POST /api/commands/risks/<risk_id>/assign-expert`
 
 Assign expert to risk in write model.
 
-### POST `/api/commands/events/process`
+### POST `/api/v1/commands/events/process`
+
+Legacy alias: `POST /api/commands/events/process`
 
 Process queued domain events and synchronize read model.
 
@@ -276,15 +381,21 @@ Request:
 
 ### Queries (read model, raw SQL)
 
-### GET `/api/queries/risks?status=ACTIVE&search=risk-001`
+### GET `/api/v1/queries/risks?status=ACTIVE&search=risk-001`
+
+Legacy alias: `GET /api/queries/risks`
 
 Returns denormalized records from `risk_read_model`.
 
-### GET `/api/queries/risks/<risk_id>`
+### GET `/api/v1/queries/risks/<risk_id>`
+
+Legacy alias: `GET /api/queries/risks/<risk_id>`
 
 Returns one denormalized risk card.
 
-### GET `/api/queries/lag`
+### GET `/api/v1/queries/lag`
+
+Legacy alias: `GET /api/queries/lag`
 
 Shows queue lag for eventual consistency.
 
@@ -292,7 +403,9 @@ Shows queue lag for eventual consistency.
 
 ## BFF Endpoints (course 4.2)
 
-### GET `/api/bff/web/dashboard`
+### GET `/api/v1/bff/web/dashboard`
+
+Legacy alias: `GET /api/bff/web/dashboard`
 
 Aggregated DTO for manager web UI:
 
@@ -300,14 +413,18 @@ Aggregated DTO for manager web UI:
 - risk cards
 - recent audit feed
 
-### GET `/api/bff/mobile/home`
+### GET `/api/v1/bff/mobile/home`
+
+Legacy alias: `GET /api/bff/mobile/home`
 
 Aggregated DTO for worker mobile UI:
 
 - user profile block
 - recent incident queue items
 
-### GET `/api/bff/desktop/expert`
+### GET `/api/v1/bff/desktop/expert`
+
+Legacy alias: `GET /api/bff/desktop/expert`
 
 Aggregated DTO for expert desktop UI:
 
@@ -339,7 +456,9 @@ Read model is eventually consistent by design:
 
 ## Heatmap / Metrics (course 5.2)
 
-### GET `/api/heatmap`
+### GET `/api/v1/heatmap`
+
+Legacy alias: `GET /api/heatmap`
 
 Returns:
 
